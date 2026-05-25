@@ -13,6 +13,7 @@ from subspace_client import SubspaceClient
 from wormhole_manager import WormholeManager
 from subspace_server import SubspaceServer
 from dialing_log import DialingLog
+from alarm_clock_manager import AlarmClockManager
 
 class Stargate:
     """
@@ -53,8 +54,6 @@ class Stargate:
         self.connected_planet_name = None
         self.dhd_test = False
 
-        self.silence_mode = False
-
         # Lamp mode state: LED strip used as a plain RGB light or animation.
         self.lamp_mode = False
         self.lamp_color = (255, 255, 255)
@@ -74,6 +73,7 @@ class Stargate:
         self.wh_manager = WormholeManager(self)
         self.wh_manager.initialize_animation_manager()
         self.dialing_log = DialingLog(self)
+        self.alarm_clock = AlarmClockManager(self)
 
         ### Run the stargate server for incoming wormholes.
         # LAN gates must work even when Internet/Subspace is unavailable.
@@ -115,19 +115,8 @@ class Stargate:
         """
         while self.running: # If we have not aborted
 
-            # Lamp mode and Stargate activity are mutually exclusive.
-            if self.lamp_mode and (
-                len(self.address_buffer_outgoing) > 0 or
-                len(self.address_buffer_incoming) > 0 or
-                self.wormhole_active
-            ):
-                self._stop_lamp_animation()
-                self.lamp_mode = False
-                self.wh_manager.animation_manager.clear_wormhole()
-                self.log.log("Lamp mode: auto-OFF (Stargate activity detected)")
-
             ### The Dialing phase###
-            if not self.wormhole_active and self.running and not self.lamp_mode: # If we are in the dialing phase
+            if not self.wormhole_active and self.running: # If we are in the dialing phase
 
                 ## Outgoing dialing ##
                 self.outgoing_dialing()
@@ -166,14 +155,7 @@ class Stargate:
         :return: Nothing is returned
         """
         if len(self.address_buffer_outgoing) > self.locked_chevrons_outgoing:
-            if self.silence_mode:
-                elapsed = 0.0
-                delay = self.cfg.get("silence_mode_dial_delay")
-                while elapsed < delay and self.silence_mode and self.running:
-                    sleep(0.05)
-                    elapsed += 0.05
-            else:
-                self.ring.move_symbol_to_chevron(self.address_buffer_outgoing[self.locked_chevrons_outgoing], self.locked_chevrons_outgoing + 1)  # Dial the symbol
+            self.ring.move_symbol_to_chevron(self.address_buffer_outgoing[self.locked_chevrons_outgoing], self.locked_chevrons_outgoing + 1)  # Dial the symbol
             self.locked_chevrons_outgoing += 1  # Increment the locked chevrons variable.
 
             # If the gate shutdown requested, play the stop-dialing sound, and stop doing things.
@@ -251,7 +233,7 @@ class Stargate:
                     pass  # Just pass without activating a chevron.
 
                 # Play the audio clip for incoming wormhole for the first chevron
-                if self.locked_chevrons_incoming == 1 and not self.silence_mode:
+                if self.locked_chevrons_incoming == 1:
                     self.audio.play_random_clip("IncomingWormhole")
 
                 self.last_activity_time = time()  # update the last_activity_time
@@ -358,11 +340,11 @@ class Stargate:
         self.log.log('Shutting down the gate...')
 
         # Play the cancel sound
-        if cancel_sound and not self.silence_mode:
+        if cancel_sound:
             self.audio.sound_start('dialing_cancel')
 
         # Play the wormhole fail sound
-        if wormhole_fail_sound and not self.silence_mode:
+        if wormhole_fail_sound:
             self.audio.sound_start('dialing_fail')
 
         # Turn off the chevrons
@@ -419,7 +401,6 @@ class Stargate:
             return True  # returns true if we can establish a wormhole
         return False  # returns false if we cannot establish a wormhole.
 
-
     LAMP_ANIMATIONS = [
         {"id": "static", "name": "Static Color"},
         {"id": "wormhole", "name": "Wormhole Effect"},
@@ -473,7 +454,6 @@ class Stargate:
             self._apply_lamp()
 
     def _apply_lamp(self):
-        pixels = self.wh_manager.animation_manager.pixels
         total_leds = self.wh_manager.animation_manager.tot_leds
         red, green, blue = self.lamp_color
         scale = self.lamp_brightness / 255.0

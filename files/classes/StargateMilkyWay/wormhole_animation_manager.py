@@ -80,7 +80,7 @@ class WormholeAnimationManager:
         ### Rotate the pattern ###
         for revolution in range(revolutions): # pylint: disable=unused-variable
             for rotate in range(len(current_pattern)): # pylint: disable=unused-variable
-                if not self.stargate.wormhole_active and not self.stargate.lamp_animation_active:  # if wormhole/lamp animation is cancelled
+                if not self.stargate.wormhole_active and not self.stargate.lamp_animation_active:  # if the wormhole/lamp animation is cancelled
                     return  # this exits the whole for loop, even if nested.
                 current_pattern = [current_pattern[(i + rot_direction) % len(current_pattern)]
                                    for i, x in enumerate(current_pattern)]

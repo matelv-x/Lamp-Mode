@@ -19,18 +19,28 @@ class StargateWebServer(SimpleHTTPRequestHandler):
         if '?' in path:
             path, tmp = path.split('?', 1)
             query_string = urllib.parse.parse_qs(tmp)
+        if path.startswith('/stargate/'):
+            path = path[len('/stargate'):]
         return path, query_string
 
     def do_GET(self): # pylint: disable=invalid-name
         try:
             request_path, get_vars = self.parse_get_vars()
 
+            if request_path == "/dial":
+                target = self.get_home_dial_path()
+                query = urllib.parse.urlparse(self.path).query
+                self.send_response(302)
+                self.send_header("Location", target + ("?" + query if query else ""))
+                self.end_headers()
+                return
+
             if request_path == "/get/is_alive":
                 data = { 'is_alive': True }
 
             elif request_path == "/get/address_book":
                 data = {}
-                record_type = get_vars.get('type')[0]
+                record_type = get_vars.get('type', ['all'])[0]
                 if record_type == "standard":
                     data['address_book'] = self.stargate.addr_manager.get_book().get_standard_gates()
                 elif record_type == "fan":
@@ -113,8 +123,25 @@ class StargateWebServer(SimpleHTTPRequestHandler):
             elif request_path == "/get/symbols_all":
                 data = self.stargate.symbol_manager.get_all()
 
+            elif request_path == "/get/alarm_clock":
+                data = self.stargate.alarm_clock.get_alarm_data()
+
+            elif request_path == "/get/alarm_audio_files":
+                data = {
+                    "files": self.stargate.alarm_clock.list_audio_files()
+                }
+
+            elif request_path == "/get/dialing_history":
+                data = {
+                    "history": self.stargate.dialing_log.get_history(),
+                    "summary": {
+                        key: value.get("value")
+                        for key, value in self.stargate.dialing_log.get_summary().items()
+                    }
+                }
+
             elif request_path == "/get/config":
-                data = collections.OrderedDict(sorted(self.stargate.cfg.get_visible_configs().items()))
+                data = collections.OrderedDict(sorted(self.stargate.cfg.get_all_configs().items()))
 
             elif request_path == '/get/audio_clips':
                 data = self.stargate.audio.list_clips()
@@ -209,6 +236,24 @@ class StargateWebServer(SimpleHTTPRequestHandler):
                 self.stargate.chevrons.all_lights_on()
                 data = { "success": True }
 
+            elif self.path == "/do/dynamic_wormhole_on":
+                if not self.stargate.wormhole_active:
+                    self.stargate.black_hole = False
+                    self.stargate.manual_dynamic_override = True
+                    self.stargate.wormhole_active = True
+                    data = { "success": True }
+                else:
+                    data = { "success": False, "message": "A wormhole is already established." }
+
+            elif self.path == "/do/blackhole_on":
+                if not self.stargate.wormhole_active:
+                    self.stargate.black_hole = True
+                    self.stargate.manual_dynamic_override = None
+                    self.stargate.wormhole_active = True
+                    data = { "success": True }
+                else:
+                    data = { "success": False, "message": "A wormhole is already established." }
+
             elif self.path == "/do/wormhole_on":
                 if self.stargate.lamp_mode:
                     self.stargate.set_lamp_mode(False)
@@ -290,6 +335,7 @@ class StargateWebServer(SimpleHTTPRequestHandler):
                 self.stargate.ring.zero_position()
                 data = { "success": True }
 
+
             elif self.path == '/do/lamp_on':
                 color = data.get('color')
                 brightness = data.get('brightness')
@@ -355,18 +401,29 @@ class StargateWebServer(SimpleHTTPRequestHandler):
 
 
             ##### UPDATE DATA HANDLERS BELOW ####
+            elif self.path == '/do/test_alarm_clock':
+                data = self.stargate.alarm_clock.test_alarm(data.get('audio_file'))
+
+            elif self.path == '/do/stop_alarm_clock':
+                data = self.stargate.alarm_clock.stop_alarm()
+
+            elif self.path == '/update/alarm_clock':
+                try:
+                    alarm_data = self.stargate.alarm_clock.update_alarm(data)
+                    data = {
+                        "success": True,
+                        "message": "Alarm clock settings saved.",
+                        "alarm": alarm_data
+                    }
+                except Exception as exc:
+                    data = {"success": False, "message": str(exc)}
+
             elif self.path == '/update/local_stargate_address':
 
                 continue_to_save = True
                 # Parse the address
                 try:
-                    address = []
-                    for index in range(1, 10):
-                        key = f"S{index}"
-                        if key in data:
-                            address.append(data[key])
-                    if len(address) < 6:
-                        raise KeyError
+                    address = [ data['S1'], data['S2'], data['S3'], data['S4'], data['S5'], data['S6'] ]
                 except KeyError:
                     data = { "success": False, "error": "Required fields missing or invalid request" }
                     continue_to_save = False
@@ -407,8 +464,6 @@ class StargateWebServer(SimpleHTTPRequestHandler):
             elif self.path == '/update/config':
                 try:
                     message = self.stargate.cfg.set_bulk(data)
-                    if "audio_hdmi" in data:
-                        self.stargate.audio.set_correct_audio_output_device()
                     data = { "success": True, "message": "Configuration Saved", "results": message }
                 except (NameError, ValueError) as ex:
                     data = { "success": False, "message": str(ex) }
@@ -442,3 +497,15 @@ class StargateWebServer(SimpleHTTPRequestHandler):
         self.send_header("Content-type", "text/json")
         self.end_headers()
         self.wfile.write(content.encode())
+
+    def get_home_dial_path(self):
+        try:
+            page = self.stargate.cfg.get("web_home_redirect_page")
+        except Exception:
+            page = "retro/dial.html"
+
+        if page not in ("retro/dial.html", "retro/dial9.html"):
+            page = "retro/dial.html"
+
+        return "/" + page
+
