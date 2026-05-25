@@ -36,6 +36,6 @@ sudo systemctl restart stargate.service
 
 Original base project: StargateProject SG1 software from the BuildAStargate/Jordan/Kristian/Jonnerd project lineage.
 
-Additional source/idea credit: Feature idea by Marcin/Codex over StargateProject LED/wormhole animation code.
+Additional source/idea credit: Feature idea by matelv-x/Codex over StargateProject LED/wormhole animation code.
 
 How much is copied or changed: Clean-install overlay; use carefully on heavily patched live gates.
