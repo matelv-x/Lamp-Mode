@@ -29,8 +29,9 @@ sudo systemctl restart stargate.service
 ## What it changes
 
 - Adds LED lamp animation controls.
-- Overwrites selected base files.
-- Best installed after first boot and before other add-ons.
+- Applies a surgical overlay, preserving Alarm Clock and other installed add-ons.
+- Updates static color and brightness live without an Apply button.
+- Applies brightness live to Static Color, Wormhole Effect, Black Hole and Kawoosh Loop.
 
 ## Attribution and originality
 

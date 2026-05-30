@@ -3,7 +3,6 @@ set -euo pipefail
 
 TARGET="/home/pi/sg1_v4"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FILES_DIR="$SCRIPT_DIR/files"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP_DIR=""
 
@@ -24,7 +23,7 @@ fail() { echo "ERROR: $1" >&2; exit 1; }
 
 [ -d "$TARGET" ] || fail "Target folder not found: $TARGET"
 [ -f "$TARGET/main.py" ] || fail "This does not look like an SG1 app folder: $TARGET"
-[ -d "$FILES_DIR" ] || fail "Installer files folder not found: $FILES_DIR"
+[ -f "$SCRIPT_DIR/install_overlay.py" ] || fail "Overlay installer not found: $SCRIPT_DIR/install_overlay.py"
 
 if ! sudo -n true 2>/dev/null; then
   echo "This installer needs sudo because stargate files may be owned by root."
@@ -43,17 +42,21 @@ backup_file() {
 }
 
 sudo systemctl stop stargate.service || true
+trap 'sudo systemctl start stargate.service >/dev/null 2>&1 || true' EXIT
 
-while IFS= read -r -d '' src; do
-  rel="${src#"$FILES_DIR/"}"
+for rel in \
+  classes/StargateMilkyWay/stargate.py \
+  classes/StargateMilkyWay/wormhole_animation_manager.py \
+  classes/web_server.py \
+  web/debug.htm \
+  web/js/debug.js
+do
   backup_file "$rel"
-  sudo mkdir -p "$TARGET/$(dirname "$rel")"
-  sudo cp -a "$src" "$TARGET/$rel"
-  echo "Installed: $rel"
-done < <(find "$FILES_DIR" -type f -print0)
+done
 
 PYBIN="python3"
 [ -x /home/pi/venv_v4/bin/python ] && PYBIN="/home/pi/venv_v4/bin/python"
+sudo "$PYBIN" "$SCRIPT_DIR/install_overlay.py" "$TARGET"
 "$PYBIN" -m py_compile \
   "$TARGET/classes/StargateMilkyWay/stargate.py" \
   "$TARGET/classes/StargateMilkyWay/wormhole_animation_manager.py" \
@@ -62,6 +65,7 @@ PYBIN="python3"
 sudo find "$TARGET/classes" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 sudo chown -R pi:pi "$TARGET"
 sudo systemctl start stargate.service
+trap - EXIT
 
 echo
 echo "=== LAMP MODE INSTALL COMPLETE ==="
