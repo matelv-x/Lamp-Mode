@@ -11,6 +11,15 @@ def replace_once(text, old, new, label):
     return text.replace(old, new, 1)
 
 
+def replace_any_once(text, old_values, new, label):
+    if new in text:
+        return text
+    for old in old_values:
+        if old in text:
+            return text.replace(old, new, 1)
+    raise RuntimeError(f"Could not find insertion point: {label}")
+
+
 def update(path, transform):
     text = path.read_text()
     updated = transform(text)
@@ -206,9 +215,12 @@ post_routes = """            elif self.path == '/do/lamp_on':
 
 
 def patch_server(text):
-    text = replace_once(
+    text = replace_any_once(
         text,
-        "                    \"speed_dial_full_address\":  self.stargate.cfg.get('dialing_address_book_dials_full_address')\n",
+        (
+            "                    \"speed_dial_full_address\":  self.stargate.cfg.get('dialing_address_book_dials_full_address')\n",
+            "                    \"speed_dial_full_address\": self.stargate.cfg.get('dialing_address_book_dials_full_address')\n",
+        ),
         status_fields,
         "dialing status fields",
     )
