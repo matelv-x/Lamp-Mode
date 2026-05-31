@@ -257,7 +257,15 @@ lamp_html = """        <hr />
 
 
 def patch_html(text):
-    return replace_once(text, "        <hr />\n        <h4>Wormhole Manual Control</h4>\n", lamp_html + "        <hr />\n        <h4>Wormhole Manual Control</h4>\n", "Lamp Mode HTML")
+    return replace_any_once(
+        text,
+        (
+            "        <hr />\n        <h4>Wormhole Manual Control</h4>\n",
+            "        <hr />\n\n        <h4>Wormhole Manual Control</h4>\n",
+        ),
+        lamp_html + "        <hr />\n        <h4>Wormhole Manual Control</h4>\n",
+        "Lamp Mode HTML",
+    )
 
 
 lamp_js = r"""
