@@ -1,5 +1,7 @@
 # Lamp Mode
 
+[![Downloads](https://img.shields.io/github/downloads/matelv-x/Lamp-Mode/total?label=downloads)](https://github.com/matelv-x/Lamp-Mode/releases)
+
 Clean-install LED strip lamp mode add-on.
 
 This repository is private while it is being checked and verified.
