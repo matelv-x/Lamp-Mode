@@ -4,8 +4,6 @@
 
 Clean-install LED strip lamp mode add-on.
 
-This repository is private while it is being checked and verified.
-
 ## Install
 
 Clone or unzip this add-on into `/home/pi`, then run:
