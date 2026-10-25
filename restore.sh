@@ -22,7 +22,9 @@ BACKUP="$(ls -dt "$TARGET"/backups/lamp-mode-* 2>/dev/null | head -n 1 || true)"
 echo "Restoring Lamp Mode files from:"
 echo "  $BACKUP"
 
-sudo systemctl stop stargate.service || true
+if [ "${STARGATE_ADDON_NO_RESTART:-0}" != "1" ]; then
+  sudo systemctl stop stargate.service || true
+fi
 
 while IFS= read -r -d '' src; do
   rel="${src#"$BACKUP/"}"
@@ -34,6 +36,10 @@ done < <(find "$BACKUP" -type f -print0)
 
 sudo find "$TARGET/classes" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 sudo chown -R pi:pi "$TARGET"
-sudo systemctl start stargate.service
+if [ "${STARGATE_ADDON_NO_RESTART:-0}" != "1" ]; then
+  sudo systemctl start stargate.service
+else
+  echo "Stargate restart deferred by add-on manager."
+fi
 
 echo "=== LAMP MODE RESTORE COMPLETE ==="

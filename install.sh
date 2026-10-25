@@ -41,8 +41,10 @@ backup_file() {
   fi
 }
 
-sudo systemctl stop stargate.service || true
-trap 'sudo systemctl start stargate.service >/dev/null 2>&1 || true' EXIT
+if [ "${STARGATE_ADDON_NO_RESTART:-0}" != "1" ]; then
+  sudo systemctl stop stargate.service || true
+  trap 'sudo systemctl start stargate.service >/dev/null 2>&1 || true' EXIT
+fi
 
 for rel in \
   classes/StargateMilkyWay/stargate.py \
@@ -64,8 +66,12 @@ sudo "$PYBIN" "$SCRIPT_DIR/install_overlay.py" "$TARGET"
 
 sudo find "$TARGET/classes" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 sudo chown -R pi:pi "$TARGET"
-sudo systemctl start stargate.service
-trap - EXIT
+if [ "${STARGATE_ADDON_NO_RESTART:-0}" != "1" ]; then
+  sudo systemctl start stargate.service
+  trap - EXIT
+else
+  echo "Stargate restart deferred by add-on manager."
+fi
 
 echo
 echo "=== LAMP MODE INSTALL COMPLETE ==="
