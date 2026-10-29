@@ -26,6 +26,11 @@ sudo ./restore.sh --target /home/pi/sg1_v4
 sudo systemctl restart stargate.service
 ```
 
+The uninstaller removes the Lamp Mode controls from the active debug page and,
+when Stellar Archive is present, from its `managed` and `originals` page
+snapshots. This prevents a later Archive update or restore from bringing the
+removed controls back.
+
 ## What it changes
 
 - Adds LED lamp animation controls.

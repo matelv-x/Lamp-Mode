@@ -34,7 +34,7 @@ target = Path(sys.argv[1] if len(sys.argv) > 1 else "/home/pi/sg1_v4")
 def unpatch_stargate(text):
     text = remove_pattern(
         text,
-        r"\n        # Lamp mode state: use the wormhole strip as a live-adjustable light\.\n"
+        r"\n        # Lamp mode state:[^\n]*\n"
         r"        self\.lamp_mode = False\n"
         r"        self\.lamp_color = \(255, 255, 255\)\n"
         r"        self\.lamp_brightness = 255\n"
@@ -61,6 +61,17 @@ def unpatch_animation(text):
     text = replace_all(
         text,
         'while current_pattern != new_pattern and (self.stargate.wormhole_active or getattr(self.stargate, "lamp_animation_active", False)):',
+        "while current_pattern != new_pattern and self.stargate.wormhole_active:",
+    )
+    text = re.sub(
+        r'if not self\.stargate\.wormhole_active and not self\.stargate\.lamp_animation_active:'
+        r'  # if the wormhole/lamp animation is cancelled',
+        'if not self.stargate.wormhole_active:  # if the wormhole is cancelled',
+        text,
+    )
+    text = replace_all(
+        text,
+        'while current_pattern != new_pattern and (self.stargate.wormhole_active or self.stargate.lamp_animation_active):',
         "while current_pattern != new_pattern and self.stargate.wormhole_active:",
     )
     text = replace_all(
@@ -98,7 +109,7 @@ def unpatch_server(text):
     text = remove_pattern(
         text,
         r"            elif self\.path == '/do/lamp_on':\n.*?"
-        r"                    data = \{\"success\": True, \"color\": list\(self\.stargate\.lamp_color\), \"brightness\": self\.stargate\.lamp_brightness, \"lamp_animation\": self\.stargate\.lamp_animation\}\n\n",
+        r"(?=            elif self\.path == \"/do/dhd_test_enable\":\n)",
         "Lamp POST routes",
     )
     text = re.sub(
@@ -114,8 +125,8 @@ def unpatch_server(text):
 def unpatch_html(text):
     return remove_pattern(
         text,
-        r"        <hr />\n        <h4>LED Strip &mdash; Lamp Mode</h4>.*?"
-        r"        <div id=\"lamp_animation_buttons\"[^\n]*></div>\n\n",
+        r"        <hr />\n(?:[ \t]*\n)*        <h4>LED Strip &mdash; Lamp Mode</h4>.*?"
+        r"        <div id=\"lamp_animation_buttons\"[^\n]*></div>\n(?:[ \t]*\n)*",
         "Lamp Mode debug controls",
     )
 
@@ -124,8 +135,8 @@ def unpatch_js(text):
     text = text.replace("  updateLampStatus(data);\n", "")
     return remove_pattern(
         text,
-        r"\n\n// Lamp Mode controls: color and brightness update live, without an Apply button\..*?"
-        r"\$\(initLampControls\);\n",
+        r"\n\n// Lamp Mode controls[^\n]*\n.*?"
+        r"\$\((?:initLampControls|function\(\) \{ initLampControls\(\); \})\);\n",
         "Lamp Mode JavaScript",
     )
 
@@ -146,4 +157,15 @@ update(
     ("/get/lamp_status", "/do/lamp_on", "self.stargate.lamp_mode"),
 )
 update(target / "web/debug.htm", unpatch_html, ("lamp_status_bar", "Lamp Mode</h4>"))
+
+# Stellar Archive keeps two copies of the original navigation pages. Clean the
+# Lamp Mode block from both when they exist, otherwise a later Archive update or
+# uninstall can restore the already removed controls into the active page.
+for archive_debug in (
+    target / "web/.stellar-archive-addon/managed/original-nav-pages/debug.htm",
+    target / "web/.stellar-archive-addon/originals/original-nav-pages/debug.htm",
+):
+    if archive_debug.is_file():
+        update(archive_debug, unpatch_html, ("lamp_status_bar", "Lamp Mode</h4>"))
+
 update(target / "web/js/debug.js", unpatch_js, ("Lamp Mode controls", "updateLampStatus"))
