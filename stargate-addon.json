@@ -7,5 +7,6 @@
   "detect": {"any": [{"path": "web/js/debug.js", "contains": "Lamp Mode controls"}, {"path": "classes/web_server.py", "contains": "lamp_mode"}]},
   "install": {"argv": ["./install.sh", "--target", "{sg1_root}"], "timeout": 900},
   "uninstall": {"argv": ["./restore.sh", "--target", "{sg1_root}"], "timeout": 900},
+  "archive_integration_files": ["classes/web_server.py"],
   "restart_required": true
 }

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 TARGET="${1:-/home/pi/sg1_v4}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ "$TARGET" == "--target" ]]; then
   TARGET="${2:-/home/pi/sg1_v4}"
 fi
@@ -15,29 +16,28 @@ if ! sudo -n true 2>/dev/null; then
   sudo true
 fi
 
-BACKUP="$(ls -dt "$TARGET"/backups/lamp-mode-* 2>/dev/null | head -n 1 || true)"
-[ -n "$BACKUP" ] || fail "No Lamp Mode backup found in $TARGET/backups"
-[ -d "$BACKUP" ] || fail "Backup folder does not exist: $BACKUP"
+[ -f "$SCRIPT_DIR/uninstall_overlay.py" ] || fail "Overlay uninstaller not found: $SCRIPT_DIR/uninstall_overlay.py"
 
-echo "Restoring Lamp Mode files from:"
-echo "  $BACKUP"
+echo "Removing only Lamp Mode integration blocks."
 
 if [ "${STARGATE_ADDON_NO_RESTART:-0}" != "1" ]; then
   sudo systemctl stop stargate.service || true
+  trap 'sudo systemctl start stargate.service >/dev/null 2>&1 || true' EXIT
 fi
 
-while IFS= read -r -d '' src; do
-  rel="${src#"$BACKUP/"}"
-  sudo mkdir -p "$TARGET/$(dirname "$rel")"
-  sudo rm -rf "$TARGET/$rel"
-  sudo cp -a "$src" "$TARGET/$rel"
-  echo "Restored: $rel"
-done < <(find "$BACKUP" -type f -print0)
+PYBIN="python3"
+[ -x /home/pi/venv_v4/bin/python ] && PYBIN="/home/pi/venv_v4/bin/python"
+sudo "$PYBIN" "$SCRIPT_DIR/uninstall_overlay.py" "$TARGET"
+"$PYBIN" -m py_compile \
+  "$TARGET/classes/StargateMilkyWay/stargate.py" \
+  "$TARGET/classes/StargateMilkyWay/wormhole_animation_manager.py" \
+  "$TARGET/classes/web_server.py"
 
 sudo find "$TARGET/classes" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 sudo chown -R pi:pi "$TARGET"
 if [ "${STARGATE_ADDON_NO_RESTART:-0}" != "1" ]; then
   sudo systemctl start stargate.service
+  trap - EXIT
 else
   echo "Stargate restart deferred by add-on manager."
 fi
