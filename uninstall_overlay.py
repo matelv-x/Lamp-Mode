@@ -15,9 +15,31 @@ def remove_pattern(text, pattern, label):
     return updated
 
 
+def remote_close_signature(text):
+    pattern = re.compile(
+        r"(?ms)^    def notify_remote_wormhole_close\(.*?"
+        r"(?=^    (?:@|def )|^class |\Z)"
+    )
+    match = pattern.search(text)
+    return (
+        text.count("self.outgoing_remote_ip"),
+        text.count("self.remote_disconnect_sent"),
+        match.group(0) if match else None,
+    )
+
+
 def update(path, transform, forbidden=()):
     text = path.read_text()
+    protected = (
+        remote_close_signature(text)
+        if path.name == "stargate.py"
+        else None
+    )
     updated = transform(text)
+    if protected is not None and remote_close_signature(updated) != protected:
+        raise RuntimeError(
+            f"Refusing to alter authoritative remote-close integration in {path}"
+        )
     leftovers = [marker for marker in forbidden if marker in updated]
     if leftovers:
         raise RuntimeError(f"Lamp Mode markers remain in {path}: {leftovers}")

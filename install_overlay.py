@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 import sys
 
 
@@ -20,9 +21,31 @@ def replace_any_once(text, old_values, new, label):
     raise RuntimeError(f"Could not find insertion point: {label}")
 
 
+def remote_close_signature(text):
+    pattern = re.compile(
+        r"(?ms)^    def notify_remote_wormhole_close\(.*?"
+        r"(?=^    (?:@|def )|^class |\Z)"
+    )
+    match = pattern.search(text)
+    return (
+        text.count("self.outgoing_remote_ip"),
+        text.count("self.remote_disconnect_sent"),
+        match.group(0) if match else None,
+    )
+
+
 def update(path, transform):
     text = path.read_text()
+    protected = (
+        remote_close_signature(text)
+        if path.name == "stargate.py"
+        else None
+    )
     updated = transform(text)
+    if protected is not None and remote_close_signature(updated) != protected:
+        raise RuntimeError(
+            f"Refusing to alter authoritative remote-close integration in {path}"
+        )
     if updated != text:
         path.write_text(updated)
         print(f"Updated: {path}")
@@ -229,7 +252,11 @@ def patch_server(text):
     for action in ("dynamic_wormhole_on", "blackhole_on", "wormhole_on", "wormhole_off", "simulate_incoming", "dhd_press", "clear_outgoing_buffer"):
         anchor = f'            elif self.path == "/do/{action}":\n'
         guard = anchor + "                if self.stargate.lamp_mode:\n                    self.stargate.set_lamp_mode(False)\n"
-        text = replace_once(text, anchor, guard, f"{action} lamp shutdown")
+        if guard in text:
+            continue
+        if anchor not in text:
+            continue
+        text = text.replace(anchor, guard, 1)
     return text
 
 
