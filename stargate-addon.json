@@ -1,5 +1,6 @@
 {
   "maintenance_contract": 1,
+  "uninstall_contract": 2,
   "id": "lamp-mode",
   "name": "Lamp Mode",
   "repository": "matelv-x/Lamp-Mode",
